@@ -24,7 +24,7 @@ npm install
 Create a `.env` file (or export env vars) and set:
 
 ```bash
-VITE_API_BASE_URL=http://localhost:8000
+VITE_API_BASE_URL=http://localhost:8080
 ```
 
 You can also copy from `.env.example`.
@@ -34,7 +34,7 @@ Important: Vite only reads `VITE_` env vars at startup. If you change `VITE_API_
 Example one-liner:
 
 ```bash
-VITE_API_BASE_URL=http://localhost:8000 npm run dev
+VITE_API_BASE_URL=http://localhost:8080 npm run dev
 ```
 
 3) Run
