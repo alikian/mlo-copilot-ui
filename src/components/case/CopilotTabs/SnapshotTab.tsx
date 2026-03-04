@@ -49,7 +49,6 @@ function buildSnapshotSections(payload: any): {
             return {
               heading: `Borrower ${idx + 1}${primary}`,
               lines: [
-                `ID: ${fmt(b.borrower_id)}`,
                 `Credit score: ${fmt(b.credit_score_mid)}`,
                 `Citizenship: ${fmt(b.citizenship)}`,
                 `Income type: ${fmt(b.employment?.income_type)}`,
@@ -252,10 +251,33 @@ function buildSnapshotText(payload: any): string {
 
 function SectionBox({ section }: { section: SnapshotSection }) {
   return (
-    <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 2, p: 2 }}>
-      <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
+    <Box
+      component="fieldset"
+      sx={{
+        border: 1,
+        borderColor: 'divider',
+        borderRadius: 2,
+        backgroundColor: 'action.hover',
+        px: 2,
+        pb: 2,
+        pt: 1.5,
+        m: 0,
+        minWidth: 0,
+      }}
+    >
+      <Box
+        component="legend"
+        sx={{
+          px: 1,
+          backgroundColor: 'action.hover',
+          borderRadius: 1,
+          fontSize: (t) => t.typography.subtitle2.fontSize,
+          fontWeight: 700,
+          color: 'text.primary',
+        }}
+      >
         {section.title}
-      </Typography>
+      </Box>
       <Stack spacing={1.5}>
         {section.blocks.map((b, idx) => (
           <Box key={idx}>
