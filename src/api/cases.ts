@@ -28,11 +28,27 @@ function findArrayDeep(value: any, depth = 0): any[] | null {
 
 function unwrapCaseDetail(payload: any): CaseDetail {
   if (payload && typeof payload === 'object') {
-    if ('case_id' in payload) return payload as CaseDetail
+    if ('case_id' in payload) {
+      const inner = (payload as any).payload
+      if (inner && typeof inner === 'object' && !Array.isArray(inner)) {
+        const merged: any = { ...payload, ...inner }
+        delete merged.payload
+        return merged as CaseDetail
+      }
+      return payload as CaseDetail
+    }
 
     for (const key of ['case', 'item', 'result', 'data', 'case_detail', 'payload']) {
       const v = (payload as any)[key]
-      if (v && typeof v === 'object' && 'case_id' in v) return v as CaseDetail
+      if (v && typeof v === 'object' && 'case_id' in v) {
+        const inner = (v as any).payload
+        if (inner && typeof inner === 'object' && !Array.isArray(inner)) {
+          const merged: any = { ...v, ...inner }
+          delete merged.payload
+          return merged as CaseDetail
+        }
+        return v as CaseDetail
+      }
     }
   }
   throw new Error('Unexpected case detail response shape')
