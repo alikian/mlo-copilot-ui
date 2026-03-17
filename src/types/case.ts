@@ -86,7 +86,21 @@ export type CaseDetail = {
     estimated_value: UnknownNumber
     loan_amount: UnknownNumber
     hoa_dues_monthly: UnknownNumber
+    property_tax_monthly: UnknownNumber
+    insurance_monthly: UnknownNumber
+    mortgage_insurance_monthly: UnknownNumber
   }
+  future_housing_cost: {
+    hoa_dues_monthly: UnknownNumber
+    property_tax_monthly: UnknownNumber
+    insurance_monthly: UnknownNumber
+    mortgage_insurance_monthly: UnknownNumber
+  } | null
+  loan_terms: {
+    rate: number
+    term_months: number
+    amortization_type: 'fixed' | 'arm' | 'unknown'
+  } | null
   calculations: {
     ltv: UnknownNumber
     front_dti: UnknownNumber

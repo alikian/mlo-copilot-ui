@@ -100,6 +100,9 @@ const schema = z.object({
     estimated_value: z.string().optional(),
     loan_amount: z.string().optional(),
     hoa_dues_monthly: z.string().optional(),
+    property_tax_monthly: z.string().optional(),
+    insurance_monthly: z.string().optional(),
+    mortgage_insurance_monthly: z.string().optional(),
   }),
 })
 
@@ -187,6 +190,9 @@ export default function NewScenarioWizard() {
         estimated_value: '',
         loan_amount: '',
         hoa_dues_monthly: '',
+        property_tax_monthly: '',
+        insurance_monthly: '',
+        mortgage_insurance_monthly: '',
       },
     },
     mode: 'onBlur',
@@ -238,6 +244,15 @@ export default function NewScenarioWizard() {
           estimated_value: numberOrUnknown(values.property.estimated_value),
           loan_amount: numberOrUnknown(values.property.loan_amount),
           hoa_dues_monthly: numberOrUnknown(values.property.hoa_dues_monthly),
+          property_tax_monthly: numberOrUnknown(values.property.property_tax_monthly),
+          insurance_monthly: numberOrUnknown(values.property.insurance_monthly),
+          mortgage_insurance_monthly: numberOrUnknown(values.property.mortgage_insurance_monthly),
+        },
+        future_housing_cost: {
+          hoa_dues_monthly: numberOrUnknown(values.property.hoa_dues_monthly),
+          property_tax_monthly: numberOrUnknown(values.property.property_tax_monthly),
+          insurance_monthly: numberOrUnknown(values.property.insurance_monthly),
+          mortgage_insurance_monthly: numberOrUnknown(values.property.mortgage_insurance_monthly),
         },
         calculations: {
           ltv: 'unknown',
@@ -671,6 +686,42 @@ export default function NewScenarioWizard() {
                         render={({ field }) => (
                           <TextField
                             label="HOA Dues (monthly)"
+                            {...field}
+                            placeholder="Leave blank for Unknown"
+                            inputMode="decimal"
+                          />
+                        )}
+                      />
+                      <Controller
+                        name="property.property_tax_monthly"
+                        control={methods.control}
+                        render={({ field }) => (
+                          <TextField
+                            label="Property Tax (monthly)"
+                            {...field}
+                            placeholder="Leave blank for Unknown"
+                            inputMode="decimal"
+                          />
+                        )}
+                      />
+                      <Controller
+                        name="property.insurance_monthly"
+                        control={methods.control}
+                        render={({ field }) => (
+                          <TextField
+                            label="Insurance (monthly)"
+                            {...field}
+                            placeholder="Leave blank for Unknown"
+                            inputMode="decimal"
+                          />
+                        )}
+                      />
+                      <Controller
+                        name="property.mortgage_insurance_monthly"
+                        control={methods.control}
+                        render={({ field }) => (
+                          <TextField
+                            label="Mortgage Insurance (monthly)"
                             {...field}
                             placeholder="Leave blank for Unknown"
                             inputMode="decimal"

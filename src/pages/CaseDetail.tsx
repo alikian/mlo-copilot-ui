@@ -44,6 +44,47 @@ function stringToUnknownNumber(v: unknown): UnknownNumber {
   return Number.isFinite(n) ? n : 'unknown'
 }
 
+function parseOptionalNumber(v: unknown): number | null {
+  if (v === null || v === undefined) return null
+  const s = String(v).trim()
+  if (!s) return null
+  const n = Number(s)
+  return Number.isFinite(n) ? n : null
+}
+
+function calcMonthlyMortgagePaymentFromValues(values: IntakeFormValues): number | null {
+  const loanAmount = parseOptionalNumber(values.property?.loan_amount)
+  const ratePercent = parseOptionalNumber(values.loan_terms?.rate)
+  const termMonths = parseOptionalNumber(values.loan_terms?.term_months)
+
+  if (loanAmount === null || loanAmount <= 0) return null
+  if (ratePercent === null || ratePercent <= 0) return null
+  if (termMonths === null || termMonths <= 0) return null
+
+  const r = ratePercent / 100 / 12
+  const n = termMonths
+  const denom = 1 - Math.pow(1 + r, -n)
+  if (!Number.isFinite(denom) || denom === 0) return null
+  const pmt = (loanAmount * r) / denom
+  if (!Number.isFinite(pmt) || pmt <= 0) return null
+  return Number(pmt.toFixed(2))
+}
+
+function calcFutureHousingPaymentEstFromValues(values: IntakeFormValues): number | null {
+  const mortgage = calcMonthlyMortgagePaymentFromValues(values)
+  const hoa = parseOptionalNumber(values.property?.hoa_dues_monthly)
+  const tax = parseOptionalNumber(values.property?.property_tax_monthly)
+  const ins = parseOptionalNumber(values.property?.insurance_monthly)
+  const mi = parseOptionalNumber(values.property?.mortgage_insurance_monthly)
+
+  const hasAny = mortgage !== null || hoa !== null || tax !== null || ins !== null || mi !== null
+  if (!hasAny) return null
+
+  const total = (mortgage ?? 0) + (hoa ?? 0) + (tax ?? 0) + (ins ?? 0) + (mi ?? 0)
+  if (!Number.isFinite(total)) return null
+  return Number(total.toFixed(2))
+}
+
 type IntakeFormValues = {
   deal: {
     purpose: CaseDetail['deal']['purpose']
@@ -85,10 +126,78 @@ type IntakeFormValues = {
     estimated_value: string
     loan_amount: string
     hoa_dues_monthly: string
+    property_tax_monthly: string
+    insurance_monthly: string
+    mortgage_insurance_monthly: string
+  }
+  loan_terms: {
+    rate: string
+    term_months: string
+    amortization_type: NonNullable<CaseDetail['loan_terms']>['amortization_type']
   }
   human_decision: {
     selected_path: string
     notes: string
+  }
+}
+
+function makeEmptyFormValues(): IntakeFormValues {
+  return {
+    deal: {
+      purpose: 'purchase',
+      occupancy: 'primary',
+      property_type: 'sfr',
+      state: 'CA',
+      target_close_days: '30',
+    },
+    borrowers: [
+      {
+        borrower_id: crypto.randomUUID(),
+        is_primary: true,
+        credit_score_mid: '',
+        citizenship: 'unknown',
+        employment: {
+          income_type: 'unknown',
+          job_time_months: '',
+          self_employed_time_months: '',
+        },
+      },
+    ],
+    income: {
+      monthly_gross_income: '',
+      income_notes: '',
+      documents_seen: [],
+    },
+    assets: {
+      down_payment_amount: '',
+      reserves_months: '',
+      gift_funds: 'unknown',
+      gift_amount: '',
+    },
+    liabilities: {
+      monthly_debts_total: '',
+      current_housing_payment: '',
+      future_housing_payment_est: '',
+      notes: '',
+    },
+    property: {
+      purchase_price: '',
+      estimated_value: '',
+      loan_amount: '',
+      hoa_dues_monthly: '',
+      property_tax_monthly: '',
+      insurance_monthly: '',
+      mortgage_insurance_monthly: '',
+    },
+    loan_terms: {
+      rate: '',
+      term_months: '',
+      amortization_type: 'unknown',
+    },
+    human_decision: {
+      selected_path: '',
+      notes: '',
+    },
   }
 }
 
@@ -151,11 +260,69 @@ const intakeSchema = z
       estimated_value: z.string().optional().default(''),
       loan_amount: z.string().optional().default(''),
       hoa_dues_monthly: z.string().optional().default(''),
+      property_tax_monthly: z.string().optional().default(''),
+      insurance_monthly: z.string().optional().default(''),
+      mortgage_insurance_monthly: z.string().optional().default(''),
+    }),
+    loan_terms: z.object({
+      rate: z.string().optional().default(''),
+      term_months: z.string().optional().default(''),
+      amortization_type: z.enum(['unknown', 'fixed', 'arm']).default('unknown'),
     }),
     human_decision: z.object({
       selected_path: z.string().default(''),
       notes: z.string().default(''),
     }),
+  })
+  .superRefine((values, ctx) => {
+    const rate = String(values.loan_terms?.rate ?? '').trim()
+    const termMonths = String(values.loan_terms?.term_months ?? '').trim()
+    const amortizationType = values.loan_terms?.amortization_type ?? 'unknown'
+
+    const wantsLoan = !!rate || !!termMonths || amortizationType !== 'unknown'
+    if (!wantsLoan) return
+
+    if (!rate) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Rate is required',
+        path: ['loan_terms', 'rate'],
+      })
+    } else {
+      const n = Number(rate)
+      if (!Number.isFinite(n) || n <= 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Enter a valid rate',
+          path: ['loan_terms', 'rate'],
+        })
+      }
+    }
+
+    if (!termMonths) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Term (months) is required',
+        path: ['loan_terms', 'term_months'],
+      })
+    } else {
+      const n = Number(termMonths)
+      if (!Number.isFinite(n) || n <= 0 || !Number.isInteger(n)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Enter a valid number of months',
+          path: ['loan_terms', 'term_months'],
+        })
+      }
+    }
+
+    if (amortizationType === 'unknown') {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Amortization type is required',
+        path: ['loan_terms', 'amortization_type'],
+      })
+    }
   })
 
 function caseToFormValues(c: CaseDetail): IntakeFormValues {
@@ -226,7 +393,30 @@ function caseToFormValues(c: CaseDetail): IntakeFormValues {
       purchase_price: unknownNumberToStringSafe((c as any).property?.purchase_price),
       estimated_value: unknownNumberToStringSafe((c as any).property?.estimated_value),
       loan_amount: unknownNumberToStringSafe((c as any).property?.loan_amount),
-      hoa_dues_monthly: unknownNumberToStringSafe((c as any).property?.hoa_dues_monthly),
+      hoa_dues_monthly: unknownNumberToStringSafe(
+        (c as any).future_housing_cost?.hoa_dues_monthly ?? (c as any).property?.hoa_dues_monthly,
+      ),
+      property_tax_monthly: unknownNumberToStringSafe(
+        (c as any).future_housing_cost?.property_tax_monthly ?? (c as any).property?.property_tax_monthly,
+      ),
+      insurance_monthly: unknownNumberToStringSafe(
+        (c as any).future_housing_cost?.insurance_monthly ?? (c as any).property?.insurance_monthly,
+      ),
+      mortgage_insurance_monthly: unknownNumberToStringSafe(
+        (c as any).future_housing_cost?.mortgage_insurance_monthly ??
+          (c as any).property?.mortgage_insurance_monthly,
+      ),
+    },
+    loan_terms: {
+      rate:
+        c.loan_terms && typeof c.loan_terms.rate === 'number' && Number.isFinite(c.loan_terms.rate)
+          ? String(c.loan_terms.rate)
+          : '',
+      term_months:
+        c.loan_terms && typeof c.loan_terms.term_months === 'number' && Number.isFinite(c.loan_terms.term_months)
+          ? String(c.loan_terms.term_months)
+          : '',
+      amortization_type: c.loan_terms?.amortization_type ?? 'unknown',
     },
     human_decision: {
       selected_path: (c as any).human_decision?.selected_path ?? '',
@@ -236,6 +426,19 @@ function caseToFormValues(c: CaseDetail): IntakeFormValues {
 }
 
 function formValuesToPatch(values: IntakeFormValues): Partial<CaseDetail> {
+  const loanRate = String(values.loan_terms?.rate ?? '').trim()
+  const loanTermMonths = String(values.loan_terms?.term_months ?? '').trim()
+  const loanAmortizationType = values.loan_terms?.amortization_type ?? 'unknown'
+  const wantsLoan = !!loanRate || !!loanTermMonths || loanAmortizationType !== 'unknown'
+
+  const hoa = String(values.property?.hoa_dues_monthly ?? '').trim()
+  const tax = String(values.property?.property_tax_monthly ?? '').trim()
+  const ins = String(values.property?.insurance_monthly ?? '').trim()
+  const mi = String(values.property?.mortgage_insurance_monthly ?? '').trim()
+  const wantsFutureHousingCost = !!hoa || !!tax || !!ins || !!mi
+
+  const computedFutureHousingPaymentEst = calcFutureHousingPaymentEstFromValues(values)
+
   return {
     deal: {
       ...values.deal,
@@ -268,7 +471,10 @@ function formValuesToPatch(values: IntakeFormValues): Partial<CaseDetail> {
     liabilities: {
       monthly_debts_total: stringToUnknownNumber(values.liabilities.monthly_debts_total),
       current_housing_payment: stringToUnknownNumber(values.liabilities.current_housing_payment),
-      future_housing_payment_est: stringToUnknownNumber(values.liabilities.future_housing_payment_est),
+      future_housing_payment_est:
+        computedFutureHousingPaymentEst === null
+          ? stringToUnknownNumber(values.liabilities.future_housing_payment_est)
+          : computedFutureHousingPaymentEst,
       notes: values.liabilities.notes,
     },
     property: {
@@ -276,7 +482,25 @@ function formValuesToPatch(values: IntakeFormValues): Partial<CaseDetail> {
       estimated_value: stringToUnknownNumber(values.property.estimated_value),
       loan_amount: stringToUnknownNumber(values.property.loan_amount),
       hoa_dues_monthly: stringToUnknownNumber(values.property.hoa_dues_monthly),
+      property_tax_monthly: stringToUnknownNumber(values.property.property_tax_monthly),
+      insurance_monthly: stringToUnknownNumber(values.property.insurance_monthly),
+      mortgage_insurance_monthly: stringToUnknownNumber(values.property.mortgage_insurance_monthly),
     },
+    future_housing_cost: wantsFutureHousingCost
+      ? {
+          hoa_dues_monthly: stringToUnknownNumber(values.property.hoa_dues_monthly),
+          property_tax_monthly: stringToUnknownNumber(values.property.property_tax_monthly),
+          insurance_monthly: stringToUnknownNumber(values.property.insurance_monthly),
+          mortgage_insurance_monthly: stringToUnknownNumber(values.property.mortgage_insurance_monthly),
+        }
+      : null,
+    loan_terms: wantsLoan
+      ? {
+          rate: Number(loanRate),
+          term_months: Number(loanTermMonths),
+          amortization_type: loanAmortizationType,
+        }
+      : null,
     human_decision: {
       selected_path: values.human_decision.selected_path,
       notes: values.human_decision.notes,
@@ -296,9 +520,11 @@ export default function CaseDetail() {
     queryFn: () => getCase(tenantId, caseId!),
   })
 
+  const initialDefaults = React.useMemo(() => makeEmptyFormValues(), [])
+
   const form = useForm<IntakeFormValues>({
     resolver: zodResolver(intakeSchema),
-    defaultValues: query.data ? caseToFormValues(query.data) : undefined,
+    defaultValues: initialDefaults,
     mode: 'onBlur',
   })
 

@@ -18,6 +18,28 @@ function fmt(value: any): string {
   return s.trim() ? s : 'Unknown'
 }
 
+function calcMonthlyMortgagePayment(input: {
+  loanAmount: unknown
+  ratePercent: unknown
+  termMonths: unknown
+}): number | null {
+  const loanAmount = typeof input.loanAmount === 'string' ? Number(input.loanAmount) : (input.loanAmount as any)
+  const ratePercent = typeof input.ratePercent === 'string' ? Number(input.ratePercent) : (input.ratePercent as any)
+  const termMonths = typeof input.termMonths === 'string' ? Number(input.termMonths) : (input.termMonths as any)
+
+  if (!Number.isFinite(loanAmount) || loanAmount <= 0) return null
+  if (!Number.isFinite(ratePercent) || ratePercent <= 0) return null
+  if (!Number.isFinite(termMonths) || termMonths <= 0) return null
+
+  const r = ratePercent / 100 / 12
+  const n = termMonths
+  const denom = 1 - Math.pow(1 + r, -n)
+  if (!Number.isFinite(denom) || denom === 0) return null
+  const pmt = (loanAmount * r) / denom
+  if (!Number.isFinite(pmt) || pmt <= 0) return null
+  return Number(pmt.toFixed(2))
+}
+
 type SnapshotSection = {
   title: string
   blocks: Array<{ heading?: string; lines: string[] }>
@@ -104,7 +126,49 @@ function buildSnapshotSections(payload: any): {
                 `Purchase price: ${fmt(p.property.purchase_price)}`,
                 `Estimated value: ${fmt(p.property.estimated_value)}`,
                 `Loan amount: ${fmt(p.property.loan_amount)}`,
-                `HOA dues (monthly): ${fmt(p.property.hoa_dues_monthly)}`,
+              ],
+            },
+          ],
+        })
+      }
+
+      if ((p as any).future_housing_cost || p.property) {
+        const fhc = (p as any).future_housing_cost || {}
+        const base = (p as any).future_housing_cost ? fhc : (p as any).property || {}
+
+        const lt = (p as any).loan_terms || {}
+        const monthlyMortgagePayment = calcMonthlyMortgagePayment({
+          loanAmount: (p as any).property?.loan_amount,
+          ratePercent: lt.rate,
+          termMonths: lt.term_months,
+        })
+
+        sections.push({
+          title: 'Future Housing Cost',
+          blocks: [
+            {
+              lines: [
+                `Monthly mortgage payment: ${fmt(monthlyMortgagePayment)}`,
+                `HOA dues (monthly): ${fmt(base.hoa_dues_monthly)}`,
+                `Property tax (monthly): ${fmt(base.property_tax_monthly)}`,
+                `Insurance (monthly): ${fmt(base.insurance_monthly)}`,
+                `Mortgage insurance (monthly): ${fmt(base.mortgage_insurance_monthly)}`,
+              ],
+            },
+          ],
+        })
+      }
+
+      if (p && typeof p === 'object' && 'loan_terms' in p) {
+        const lt = (p as any).loan_terms || {}
+        sections.push({
+          title: 'Loan',
+          blocks: [
+            {
+              lines: [
+                `Rate: ${fmt(lt.rate)}`,
+                `Term (months): ${fmt(lt.term_months)}`,
+                `Amortization type: ${fmt(lt.amortization_type)}`,
               ],
             },
           ],
@@ -212,7 +276,35 @@ function buildSnapshotText(payload: any): string {
         lines.push(`- Purchase price: ${fmt(p.property.purchase_price)}`)
         lines.push(`- Estimated value: ${fmt(p.property.estimated_value)}`)
         lines.push(`- Loan amount: ${fmt(p.property.loan_amount)}`)
-        lines.push(`- HOA dues (monthly): ${fmt(p.property.hoa_dues_monthly)}`)
+        lines.push('')
+      }
+
+      if ((p as any).future_housing_cost || p.property) {
+        const fhc = (p as any).future_housing_cost || {}
+        const base = (p as any).future_housing_cost ? fhc : (p as any).property || {}
+
+        const lt = (p as any).loan_terms || {}
+        const monthlyMortgagePayment = calcMonthlyMortgagePayment({
+          loanAmount: (p as any).property?.loan_amount,
+          ratePercent: lt.rate,
+          termMonths: lt.term_months,
+        })
+
+        lines.push('Future Housing Cost')
+        lines.push(`- Monthly mortgage payment: ${fmt(monthlyMortgagePayment)}`)
+        lines.push(`- HOA dues (monthly): ${fmt(base.hoa_dues_monthly)}`)
+        lines.push(`- Property tax (monthly): ${fmt(base.property_tax_monthly)}`)
+        lines.push(`- Insurance (monthly): ${fmt(base.insurance_monthly)}`)
+        lines.push(`- Mortgage insurance (monthly): ${fmt(base.mortgage_insurance_monthly)}`)
+        lines.push('')
+      }
+
+      if (p && typeof p === 'object' && 'loan_terms' in p) {
+        const lt = (p as any).loan_terms || {}
+        lines.push('Loan')
+        lines.push(`- Rate: ${fmt(lt.rate)}`)
+        lines.push(`- Term (months): ${fmt(lt.term_months)}`)
+        lines.push(`- Amortization type: ${fmt(lt.amortization_type)}`)
         lines.push('')
       }
 
